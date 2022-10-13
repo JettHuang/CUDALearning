@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+cudaError_t displayDeviceInfo();
 
 __global__ void addKernel(int *c, const int *a, const int *b)
 {
@@ -14,13 +15,21 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 
 int main()
 {
+
+    // Show GPU Information
+    displayDeviceInfo();
+
+
+
+    cudaError_t cudaStatus;
+
     const int arraySize = 5;
     const int a[arraySize] = { 1, 2, 3, 4, 5 };
     const int b[arraySize] = { 10, 20, 30, 40, 50 };
     int c[arraySize] = { 0 };
 
     // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
+    cudaStatus = addWithCuda(c, a, b, arraySize);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "addWithCuda failed!");
         return 1;
@@ -43,10 +52,11 @@ int main()
 // Helper function for using CUDA to add vectors in parallel.
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
 {
+    cudaError_t cudaStatus;
+
     int *dev_a = 0;
     int *dev_b = 0;
     int *dev_c = 0;
-    cudaError_t cudaStatus;
 
     // Choose which GPU to run on, change this on a multi-GPU system.
     cudaStatus = cudaSetDevice(0);
@@ -118,4 +128,75 @@ Error:
     cudaFree(dev_b);
     
     return cudaStatus;
+}
+
+
+cudaError_t displayDeviceInfo()
+{
+    cudaError_t cudaStatus;
+
+    // GPU Information
+    int deviceCount = 0;
+    cudaStatus = cudaGetDeviceCount(&deviceCount);
+    if (cudaStatus != cudaSuccess)
+    {
+        fprintf(stderr, "cudaGetDeviceCount() returned %d\n -->%s\n", (int)cudaStatus, cudaGetErrorString(cudaStatus));
+        return cudaStatus;
+    }
+
+    printf("Detected %d CUDA Capable device(s)\n", deviceCount);
+    if (deviceCount <= 0) {
+        return cudaErrorDevicesUnavailable;
+    }
+
+    int dev = 0, driverVersion = 0, runtimeVersion = 0;
+    cudaSetDevice(dev);
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, dev);
+    printf("Device %d:\"%s\"\n", dev, deviceProp.name);
+    cudaDriverGetVersion(&driverVersion);
+    cudaRuntimeGetVersion(&runtimeVersion);
+    printf("  CUDA Driver Version / Runtime Version         %d.%d  /  %d.%d\n",
+        driverVersion / 1000, (driverVersion % 100) / 10,
+        runtimeVersion / 1000, (runtimeVersion % 100) / 10);
+    printf("  CUDA Capability Major/Minor version number:   %d.%d\n",
+        deviceProp.major, deviceProp.minor);
+    printf("  Total amount of global memory:                %.2f MBytes (%llu bytes)\n",
+        (float)deviceProp.totalGlobalMem / (1024 * 1024), deviceProp.totalGlobalMem);
+    printf("  GPU Clock rate:                               %.0f MHz (%0.2f GHz)\n",
+        deviceProp.clockRate * 1e-3f, deviceProp.clockRate * 1e-6f);
+    printf("  Memory Bus width:                             %d-bits\n",
+        deviceProp.memoryBusWidth);
+    if (deviceProp.l2CacheSize)
+    {
+        printf("  L2 Cache Size:                            	%d bytes\n",
+            deviceProp.l2CacheSize);
+    }
+    printf("  Max Texture Dimension Size (x,y,z)            1D=(%d),2D=(%d,%d),3D=(%d,%d,%d)\n",
+        deviceProp.maxTexture1D, deviceProp.maxTexture2D[0], deviceProp.maxTexture2D[1]
+        , deviceProp.maxTexture3D[0], deviceProp.maxTexture3D[1], deviceProp.maxTexture3D[2]);
+    printf("  Max Layered Texture Size (dim) x layers       1D=(%d) x %d,2D=(%d,%d) x %d\n",
+        deviceProp.maxTexture1DLayered[0], deviceProp.maxTexture1DLayered[1],
+        deviceProp.maxTexture2DLayered[0], deviceProp.maxTexture2DLayered[1],
+        deviceProp.maxTexture2DLayered[2]);
+    printf("  Total amount of constant memory               %lu bytes\n",
+        deviceProp.totalConstMem);
+    printf("  Total amount of shared memory per block:      %lu bytes\n",
+        deviceProp.sharedMemPerBlock);
+    printf("  Total number of registers available per block:%d\n",
+        deviceProp.regsPerBlock);
+    printf("  Wrap size:                                    %d\n", deviceProp.warpSize);
+    printf("  Maximun number of thread per multiprocesser:  %d\n",
+        deviceProp.maxThreadsPerMultiProcessor);
+    printf("  Maximun number of thread per block:           %d\n",
+        deviceProp.maxThreadsPerBlock);
+    printf("  Maximun size of each dimension of a block:    %d x %d x %d\n",
+        deviceProp.maxThreadsDim[0], deviceProp.maxThreadsDim[1], deviceProp.maxThreadsDim[2]);
+    printf("  Maximun size of each dimension of a grid:     %d x %d x %d\n",
+        deviceProp.maxGridSize[0],
+        deviceProp.maxGridSize[1],
+        deviceProp.maxGridSize[2]);
+    printf("  Maximu memory pitch                           %lu bytes\n", deviceProp.memPitch);
+
+    return cudaSuccess;
 }
